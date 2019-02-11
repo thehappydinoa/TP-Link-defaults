@@ -6,13 +6,14 @@ Inspired by [![twitter](docs/twitter.largecardinal.682591420969029632.png)](http
 
 ## Usage
 
-    usage: scan.py [-h] [-p]
+    usage: scan.py [-h] [-p] [-t TIMEOUT]
 
     Python script for trying default passwords for some TP-Link Hotspots
 
     optional arguments:
-      -h, --help       show this help message and exit
-      -p, --print-all  print all found ssid's
+    -h, --help            show this help message and exit
+    -p, --print-all       print all found ssid's
+    -t TIMEOUT, --timeout TIMEOUT
 
     FOR EDUCATIONAL USE ONLY
 

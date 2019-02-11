@@ -1,37 +1,32 @@
 #!/usr/bin/env python3
-from collections import namedtuple
 from argparse import ArgumentParser
+from collections import namedtuple
+from re import search
+
+from scapy.layers.dot11 import Dot11, Dot11Elt
 from scapy.sendrecv import sniff
-from scapy.layers.dot11 import Dot11
 
 parser = ArgumentParser(description="Python script for trying default passwords for some TP-Link Hotspots",
                         epilog="FOR EDUCATIONAL USE ONLY")
-parser.add_argument("-p", "--print-all", help="print all found ssid's", action="store_true")
+parser.add_argument("-p", "--print-all",
+                    help="print all found ssid's", action="store_true")
+parser.add_argument("-t", "--timeout", type=int)
 args = parser.parse_args()
 
 Config = namedtuple("Config", ["timeout", "print_all"])
-CONFIG = Config(timeout=30, print_all=args.print_all)
+CONFIG = Config(timeout=args.timeout, print_all=args.print_all)
 
 endpoints = {
     # mac_address: [ssid, password]
 }
 
 
-def count_passwords():
-    return len(generate_password_list())
-
-
 def generate_password_list():
-    passwords = []
-    for endpoint in endpoints.keys():
-        password = endpoints[endpoint][1]
-        if password:
-            passwords.append(password)
-    return passwords
+    return [endpoints[endpoint][1] for endpoint in endpoints.keys() if endpoints[endpoint][1]]
 
 
 def is_tp_link(ssid):
-    return ssid.lower().startswith("tp-link")
+    return search("^tp*link$", ssid.lower())
 
 
 def get_password(mac_address):
@@ -42,10 +37,11 @@ def add_endpoint(ssid, mac_address, password=None):
     endpoints[mac_address] = [ssid, password]
 
 
-def print_endpoint(ssid, mac_address, password=None):
-    print(f"\nSSID: {ssid} \nMac Address: {mac_address}")
+def print_endpoint(ssid, mac_address, channel, password=None):
+    print("\nSSID: {ssid} \nMac Address: {mac_address} \nChannel: {channel}".format(
+        ssid=ssid, mac_address=mac_address, channel=channel))
     if password:
-        print(f"Default Password: {password}")
+        print("Default Password: {password}".format(password=password))
 
 
 def packet_handler(packet):
@@ -53,27 +49,35 @@ def packet_handler(packet):
         try:
             ssid = packet.info.decode("utf-8")
             mac_address = str(packet.addr2)
+            channel = int(ord(packet[Dot11Elt:3].info))
             if not endpoints.get(mac_address) and not ssid == "":
                 if CONFIG.print_all:
-                    print_endpoint(ssid, mac_address)
+                    print_endpoint(ssid, mac_address, channel)
                 if is_tp_link(ssid):
                     password = get_password(mac_address)
-                    print_endpoint(ssid, mac_address, password=password)
+                    print_endpoint(ssid, mac_address,
+                                   channel, password=password)
                     add_endpoint(ssid, mac_address, password=password)
                 else:
                     add_endpoint(ssid, mac_address)
-        except:
+        except (UnicodeDecodeError, AttributeError, TypeError, IndexError, AttributeError):
             pass
 
 
 def main():
     try:
-        print(f"Scanning for {CONFIG.timeout}sec...")
+        if CONFIG.timeout:
+            print("Scanning for {timeout} sec...".format(
+                timeout=CONFIG.timeout))
+        else:
+            print("Scanning...")
         sniff(prn=packet_handler, store=False,
               monitor=True, timeout=CONFIG.timeout)
-        print("Finishing up...")
-        print(f"Found {len(endpoints)} endpoints")
-        print(f"Found {count_passwords()} passwords")
+        print("Finishing up...\n")
+        print("Found {len_endpoints} endpoints".format(
+            len_endpoints=len(endpoints)))
+        print("Found {count_passwords} passwords".format(
+            count_passwords=len(generate_password_list())))
         # print(repr(endpoints))
     except KeyboardInterrupt:
         print("Exiting...")
